@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "semanticscholar": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/index.js"],
+      "env": {
+        "SEMANTIC_SCHOLAR_API_KEY": "${SEMANTIC_SCHOLAR_API_KEY:-}"
+      }
+    }
+  }
+}
