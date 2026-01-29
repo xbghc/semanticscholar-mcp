@@ -1,13 +1,14 @@
 {
   "name": "semanticscholar-mcp",
   "version": "1.0.0",
-  "description": "Semantic Scholar MCP server for Claude Code",
+  "description": "Semantic Scholar MCP server for academic paper search",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "semanticscholar-mcp": "dist/index.js"
+  },
   "files": [
-    "dist",
-    ".claude-plugin",
-    ".mcp.json"
+    "dist"
   ],
   "scripts": {
     "build": "tsc",
@@ -30,8 +31,8 @@
   "keywords": [
     "mcp",
     "semantic-scholar",
-    "claude-code",
-    "academic-search"
+    "academic-search",
+    "model-context-protocol"
   ],
   "license": "MIT"
 }

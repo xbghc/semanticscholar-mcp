@@ -1,6 +1,6 @@
-# Semantic Scholar MCP Plugin
+# Semantic Scholar MCP Server
 
-一个 Claude Code 插件，通过 MCP (Model Context Protocol) 提供 Semantic Scholar 学术搜索功能。
+一个 MCP (Model Context Protocol) 服务器，提供 Semantic Scholar 学术搜索功能。
 
 ## 功能特性
 
@@ -15,7 +15,6 @@
 ### 前置要求
 
 - Node.js >= 18
-- Claude Code >= 1.0.33
 
 ### 安装步骤
 
@@ -44,10 +43,43 @@ export SEMANTIC_SCHOLAR_API_KEY="your-api-key"
 
 ## 使用方法
 
-### 在 Claude Code 中加载插件
+### 在 Claude Desktop 中使用
+
+编辑 Claude Desktop 配置文件：
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "semanticscholar": {
+      "command": "node",
+      "args": ["/path/to/semanticscholar-mcp/dist/index.js"],
+      "env": {
+        "SEMANTIC_SCHOLAR_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+### 使用 npx 运行
 
 ```bash
-claude --plugin-dir /path/to/semanticscholar-mcp
+# 全局安装
+npm install -g .
+
+# 运行
+semanticscholar-mcp
+```
+
+### 直接运行
+
+```bash
+npm start
+# 或
+node dist/index.js
 ```
 
 ### 可用工具
@@ -78,7 +110,7 @@ claude --plugin-dir /path/to/semanticscholar-mcp
 
 ### 使用示例
 
-在 Claude Code 中直接对话即可使用：
+在支持 MCP 的客户端中直接对话即可使用：
 
 ```
 搜索关于 transformer attention 的论文
@@ -104,9 +136,6 @@ claude --plugin-dir /path/to/semanticscholar-mcp
 
 ```
 semanticscholar-mcp/
-├── .claude-plugin/
-│   └── plugin.json          # 插件清单
-├── .mcp.json                 # MCP 服务器配置
 ├── src/
 │   ├── index.ts              # 入口文件
 │   ├── server.ts             # MCP 服务器
@@ -154,7 +183,7 @@ npm test -- tests/client.integration.test.ts
 
 ## API 参考
 
-本插件基于 [Semantic Scholar Academic Graph API](https://api.semanticscholar.org/api-docs/)。
+本服务器基于 [Semantic Scholar Academic Graph API](https://api.semanticscholar.org/api-docs/)。
 
 主要端点：
 - `/graph/v1/paper/search` - 论文搜索
