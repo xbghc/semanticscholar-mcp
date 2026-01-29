@@ -1,6 +1,6 @@
 // API 客户端测试脚本
-import { client } from './api/client.js';
-import { buildFieldsParam, DEFAULT_PAPER_FIELDS, DEFAULT_AUTHOR_FIELDS } from './utils/fields.js';
+import { client } from '../src/api/client.js';
+import { buildFieldsParam, DEFAULT_PAPER_FIELDS, DEFAULT_AUTHOR_FIELDS } from '../src/utils/fields.js';
 
 async function testSearchPapers() {
   console.log('=== 测试论文搜索 ===');

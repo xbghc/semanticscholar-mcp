@@ -34,5 +34,17 @@
     "academic-search",
     "model-context-protocol"
   ],
-  "license": "MIT"
+  "author": "Xbghc",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xbghc/semanticscholar-mcp.git"
+  },
+  "homepage": "https://github.com/xbghc/semanticscholar-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/xbghc/semanticscholar-mcp/issues"
+  }
 }
