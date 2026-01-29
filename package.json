@@ -4,20 +4,34 @@
   "description": "Semantic Scholar MCP server for Claude Code",
   "type": "module",
   "main": "dist/index.js",
+  "files": [
+    "dist",
+    ".claude-plugin",
+    ".mcp.json"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "p-queue": "^9.1.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
     "typescript": "^5.4.0",
-    "tsx": "^4.7.0"
+    "vitest": "^2.0.0"
   },
-  "keywords": ["mcp", "semantic-scholar", "claude-code", "academic-search"],
+  "keywords": [
+    "mcp",
+    "semantic-scholar",
+    "claude-code",
+    "academic-search"
+  ],
   "license": "MIT"
 }
