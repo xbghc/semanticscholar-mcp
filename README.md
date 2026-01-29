@@ -1,5 +1,7 @@
 # Semantic Scholar MCP Server
 
+[![npm version](https://img.shields.io/npm/v/@xbghc/semanticscholar-mcp.svg)](https://www.npmjs.com/package/@xbghc/semanticscholar-mcp)
+
 一个 MCP (Model Context Protocol) 服务器，提供 Semantic Scholar 学术搜索功能。
 
 ## 功能特性
@@ -10,42 +12,11 @@
 - 支持多种论文 ID 格式 (DOI, ArXiv, PMID 等)
 - 内置速率限制和自动重试机制
 
-## 安装
-
-### 前置要求
-
-- Node.js >= 18
-
-### 安装步骤
-
-```bash
-# 克隆仓库
-git clone https://github.com/xbghc/semanticscholar-mcp.git
-cd semanticscholar-mcp
-
-# 安装依赖
-npm install
-
-# 构建
-npm run build
-```
-
-### 配置 API Key (可选)
-
-Semantic Scholar API 可以无需认证使用，但有速率限制。申请 API Key 可获得更高的请求配额。
-
-1. 访问 [Semantic Scholar API](https://www.semanticscholar.org/product/api) 申请 API Key
-2. 设置环境变量：
-
-```bash
-export SEMANTIC_SCHOLAR_API_KEY="your-api-key"
-```
-
-## 使用方法
+## 快速开始
 
 ### 在 Claude Desktop 中使用
 
-编辑 Claude Desktop 配置文件：
+编辑配置文件：
 
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
@@ -54,8 +25,8 @@ export SEMANTIC_SCHOLAR_API_KEY="your-api-key"
 {
   "mcpServers": {
     "semanticscholar": {
-      "command": "node",
-      "args": ["/path/to/semanticscholar-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "@xbghc/semanticscholar-mcp"],
       "env": {
         "SEMANTIC_SCHOLAR_API_KEY": "your-api-key"
       }
@@ -64,27 +35,16 @@ export SEMANTIC_SCHOLAR_API_KEY="your-api-key"
 }
 ```
 
-### 使用 npx 运行
+### 配置 API Key (可选)
 
-```bash
-# 全局安装
-npm install -g .
+Semantic Scholar API 可以无需认证使用，但有速率限制。申请 API Key 可获得更高的请求配额。
 
-# 运行
-semanticscholar-mcp
-```
+1. 访问 [Semantic Scholar API](https://www.semanticscholar.org/product/api) 申请 API Key
+2. 在配置中设置 `SEMANTIC_SCHOLAR_API_KEY` 环境变量
 
-### 直接运行
+## 可用工具
 
-```bash
-npm start
-# 或
-node dist/index.js
-```
-
-### 可用工具
-
-#### 论文相关
+### 论文相关
 
 | 工具 | 描述 |
 |------|------|
@@ -94,7 +54,7 @@ node dist/index.js
 | `get_paper_references` | 获取论文的参考文献列表 |
 | `batch_get_papers` | 批量获取多篇论文详情 (最多 500 篇) |
 
-#### 作者相关
+### 作者相关
 
 | 工具 | 描述 |
 |------|------|
@@ -102,13 +62,13 @@ node dist/index.js
 | `get_author` | 获取作者详情 (h-index, 论文数等) |
 | `get_author_papers` | 获取指定作者的论文列表 |
 
-#### 推荐
+### 推荐
 
 | 工具 | 描述 |
 |------|------|
 | `get_recommendations` | 基于指定论文获取推荐的相关论文 |
 
-### 使用示例
+## 使用示例
 
 在支持 MCP 的客户端中直接对话即可使用：
 
@@ -129,6 +89,39 @@ node dist/index.js
 - ArXiv: `ARXIV:1706.03762`
 - PubMed: `PMID:19872477`
 - Corpus ID: `CorpusId:123456`
+
+## 其他安装方式
+
+### 从源码安装
+
+```bash
+git clone https://github.com/xbghc/semanticscholar-mcp.git
+cd semanticscholar-mcp
+npm install
+npm run build
+```
+
+配置文件使用本地路径：
+
+```json
+{
+  "mcpServers": {
+    "semanticscholar": {
+      "command": "node",
+      "args": ["/path/to/semanticscholar-mcp/dist/index.js"],
+      "env": {
+        "SEMANTIC_SCHOLAR_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+### 全局安装
+
+```bash
+npm install -g @xbghc/semanticscholar-mcp
+```
 
 ## 开发
 
@@ -167,9 +160,6 @@ npm run build
 
 # 运行测试
 npm test
-
-# 运行集成测试 (需要网络)
-npm test -- tests/client.integration.test.ts
 ```
 
 ### 速率限制

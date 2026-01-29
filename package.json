@@ -1,5 +1,5 @@
 {
-  "name": "semanticscholar-mcp",
+  "name": "@xbghc/semanticscholar-mcp",
   "version": "1.0.0",
   "description": "Semantic Scholar MCP server for academic paper search",
   "type": "module",
