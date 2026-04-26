@@ -4,7 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { client } from '../api/client.js';
 import { buildFieldsParam, DEFAULT_PAPER_FIELDS } from '../utils/fields.js';
-import { formatToolError } from '../utils/errors.js';
+import { formatPaperLine, textResponse, withErrorHandling } from './shared.js';
 
 export function registerRecommendationTools(server: McpServer) {
   // 获取推荐论文
@@ -19,8 +19,8 @@ export function registerRecommendationTools(server: McpServer) {
         limit: z.number().max(500).default(10).describe('推荐数量，最大 500'),
       },
     },
-    async ({ positivePaperIds, negativePaperIds, limit }) => {
-      try {
+    async ({ positivePaperIds, negativePaperIds, limit }) =>
+      withErrorHandling(async () => {
         const result = await client.getRecommendations({
           positivePaperIds,
           negativePaperIds,
@@ -29,27 +29,13 @@ export function registerRecommendationTools(server: McpServer) {
         });
 
         if (result.recommendedPapers.length === 0) {
-          return {
-            content: [{ type: 'text', text: '未找到推荐论文，请尝试使用其他参考论文' }],
-          };
+          return textResponse('未找到推荐论文，请尝试使用其他参考论文');
         }
 
         const text = `基于 ${positivePaperIds.length} 篇参考论文，推荐 ${result.recommendedPapers.length} 篇相关论文：\n\n` +
-          result.recommendedPapers.map((paper, i) => {
-            const authors = paper.authors?.map(a => a.name).join(', ') || '未知作者';
-            const pdf = paper.openAccessPdf?.url ? `\n   PDF: ${paper.openAccessPdf.url}` : '';
-            return `${i + 1}. ${paper.title}\n   作者: ${authors}\n   年份: ${paper.year || '未知'} | 引用: ${paper.citationCount || 0}${pdf}\n   ID: ${paper.paperId}`;
-          }).join('\n\n');
+          result.recommendedPapers.map((paper, i) => formatPaperLine(paper, i + 1, true)).join('\n\n');
 
-        return {
-          content: [{ type: 'text', text }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: formatToolError(error) }],
-          isError: true,
-        };
-      }
-    }
+        return textResponse(text);
+      })
   );
 }

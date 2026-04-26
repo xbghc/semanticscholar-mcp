@@ -14,6 +14,8 @@ import type {
   RecommendationsResponse,
 } from './types.js';
 
+type QueryValue = string | number | boolean | string[] | undefined;
+
 export class SemanticScholarClient {
   private baseUrl = 'https://api.semanticscholar.org';
   private apiKey?: string;
@@ -24,41 +26,78 @@ export class SemanticScholarClient {
     this.rateLimiter = new RateLimiter(this.apiKey ? 2000 : 5000);
   }
 
+  private buildQuery(params: Record<string, QueryValue>): string {
+    const searchParams = new URLSearchParams();
+
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined || value === '') continue;
+
+      if (Array.isArray(value)) {
+        const validValues = value.filter(item => item !== '');
+        if (validValues.length > 0) {
+          searchParams.set(key, validValues.join(','));
+        }
+        continue;
+      }
+
+      if (typeof value === 'boolean') {
+        searchParams.set(key, String(value));
+        continue;
+      }
+
+      searchParams.set(key, String(value));
+    }
+
+    return searchParams.toString();
+  }
+
+  private withQuery(path: string, params: Record<string, QueryValue>): string {
+    const query = this.buildQuery(params);
+    return query ? `${path}?${query}` : path;
+  }
+
+  private getDefaultHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (this.apiKey) {
+      headers['x-api-key'] = this.apiKey;
+    }
+
+    return headers;
+  }
+
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const backoff = new BackoffStrategy(this.rateLimiter);
 
     const doRequest = async (): Promise<T> => {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (this.apiKey) {
-        headers['x-api-key'] = this.apiKey;
-      }
+      while (true) {
+        const url = `${this.baseUrl}${endpoint}`;
+        const response = await fetch(url, {
+          ...options,
+          headers: { ...this.getDefaultHeaders(), ...options?.headers },
+        });
 
-      const url = `${this.baseUrl}${endpoint}`;
-      const response = await fetch(url, {
-        ...options,
-        headers: { ...headers, ...options?.headers },
-      });
-
-      if (response.status === 429) {
-        const delay = backoff.onRateLimited();
-        if (delay === -1) {
-          throw new SemanticScholarError(429, 'Max retry attempts exceeded');
+        if (response.status === 429) {
+          const delay = backoff.onRateLimited();
+          if (delay === -1) {
+            throw new SemanticScholarError(429, 'Max retry attempts exceeded');
+          }
+          // 等待退避时间后重试
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
         }
-        // 等待退避时间后重试
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return doRequest();
-      }
 
-      if (!response.ok) {
-        const text = await response.text();
-        throw new SemanticScholarError(response.status, text);
-      }
+        if (!response.ok) {
+          const text = await response.text();
+          throw new SemanticScholarError(response.status, text);
+        }
 
-      // 请求成功，重置退避计数
-      backoff.reset();
-      return response.json() as Promise<T>;
+        // 请求成功，重置退避计数
+        backoff.reset();
+        return response.json() as Promise<T>;
+      }
     };
 
     return this.rateLimiter.execute(doRequest);
@@ -76,24 +115,26 @@ export class SemanticScholarClient {
     limit?: number;
     offset?: number;
   }): Promise<PaperSearchResponse> {
-    const searchParams = new URLSearchParams();
-    searchParams.set('query', params.query);
-    if (params.fields) searchParams.set('fields', params.fields);
-    if (params.year) searchParams.set('year', params.year);
-    if (params.openAccessPdf) searchParams.set('openAccessPdf', 'true');
-    if (params.minCitationCount) searchParams.set('minCitationCount', String(params.minCitationCount));
-    if (params.fieldsOfStudy?.length) searchParams.set('fieldsOfStudy', params.fieldsOfStudy.join(','));
-    if (params.limit) searchParams.set('limit', String(params.limit));
-    if (params.offset) searchParams.set('offset', String(params.offset));
-
-    return this.request<PaperSearchResponse>(`/graph/v1/paper/search?${searchParams}`);
+    return this.request<PaperSearchResponse>(
+      this.withQuery('/graph/v1/paper/search', {
+        query: params.query,
+        fields: params.fields,
+        year: params.year,
+        openAccessPdf: params.openAccessPdf,
+        minCitationCount: params.minCitationCount,
+        fieldsOfStudy: params.fieldsOfStudy,
+        limit: params.limit,
+        offset: params.offset,
+      })
+    );
   }
 
   async getPaper(paperId: string, fields?: string): Promise<Paper> {
-    const searchParams = new URLSearchParams();
-    if (fields) searchParams.set('fields', fields);
-    const query = searchParams.toString();
-    return this.request<Paper>(`/graph/v1/paper/${encodeURIComponent(paperId)}${query ? '?' + query : ''}`);
+    return this.request<Paper>(
+      this.withQuery(`/graph/v1/paper/${encodeURIComponent(paperId)}`, {
+        fields,
+      })
+    );
   }
 
   async getPaperCitations(paperId: string, params: {
@@ -101,12 +142,13 @@ export class SemanticScholarClient {
     limit?: number;
     offset?: number;
   }): Promise<CitationsResponse> {
-    const searchParams = new URLSearchParams();
-    if (params.fields) searchParams.set('fields', params.fields);
-    if (params.limit) searchParams.set('limit', String(params.limit));
-    if (params.offset) searchParams.set('offset', String(params.offset));
-    const query = searchParams.toString();
-    return this.request<CitationsResponse>(`/graph/v1/paper/${encodeURIComponent(paperId)}/citations${query ? '?' + query : ''}`);
+    return this.request<CitationsResponse>(
+      this.withQuery(`/graph/v1/paper/${encodeURIComponent(paperId)}/citations`, {
+        fields: params.fields,
+        limit: params.limit,
+        offset: params.offset,
+      })
+    );
   }
 
   async getPaperReferences(paperId: string, params: {
@@ -114,21 +156,18 @@ export class SemanticScholarClient {
     limit?: number;
     offset?: number;
   }): Promise<ReferencesResponse> {
-    const searchParams = new URLSearchParams();
-    if (params.fields) searchParams.set('fields', params.fields);
-    if (params.limit) searchParams.set('limit', String(params.limit));
-    if (params.offset) searchParams.set('offset', String(params.offset));
-    const query = searchParams.toString();
-    return this.request<ReferencesResponse>(`/graph/v1/paper/${encodeURIComponent(paperId)}/references${query ? '?' + query : ''}`);
+    return this.request<ReferencesResponse>(
+      this.withQuery(`/graph/v1/paper/${encodeURIComponent(paperId)}/references`, {
+        fields: params.fields,
+        limit: params.limit,
+        offset: params.offset,
+      })
+    );
   }
 
   async batchGetPapers(paperIds: string[], fields?: string): Promise<(Paper | null)[]> {
-    const searchParams = new URLSearchParams();
-    if (fields) searchParams.set('fields', fields);
-    const query = searchParams.toString();
-
     const response = await this.request<(Paper | null)[]>(
-      `/graph/v1/paper/batch${query ? '?' + query : ''}`,
+      this.withQuery('/graph/v1/paper/batch', { fields }),
       {
         method: 'POST',
         body: JSON.stringify({ ids: paperIds }),
@@ -145,20 +184,22 @@ export class SemanticScholarClient {
     limit?: number;
     offset?: number;
   }): Promise<AuthorSearchResponse> {
-    const searchParams = new URLSearchParams();
-    searchParams.set('query', params.query);
-    if (params.fields) searchParams.set('fields', params.fields);
-    if (params.limit) searchParams.set('limit', String(params.limit));
-    if (params.offset) searchParams.set('offset', String(params.offset));
-
-    return this.request<AuthorSearchResponse>(`/graph/v1/author/search?${searchParams}`);
+    return this.request<AuthorSearchResponse>(
+      this.withQuery('/graph/v1/author/search', {
+        query: params.query,
+        fields: params.fields,
+        limit: params.limit,
+        offset: params.offset,
+      })
+    );
   }
 
   async getAuthor(authorId: string, fields?: string): Promise<Author> {
-    const searchParams = new URLSearchParams();
-    if (fields) searchParams.set('fields', fields);
-    const query = searchParams.toString();
-    return this.request<Author>(`/graph/v1/author/${encodeURIComponent(authorId)}${query ? '?' + query : ''}`);
+    return this.request<Author>(
+      this.withQuery(`/graph/v1/author/${encodeURIComponent(authorId)}`, {
+        fields,
+      })
+    );
   }
 
   async getAuthorPapers(authorId: string, params: {
@@ -166,12 +207,13 @@ export class SemanticScholarClient {
     limit?: number;
     offset?: number;
   }): Promise<AuthorPapersResponse> {
-    const searchParams = new URLSearchParams();
-    if (params.fields) searchParams.set('fields', params.fields);
-    if (params.limit) searchParams.set('limit', String(params.limit));
-    if (params.offset) searchParams.set('offset', String(params.offset));
-    const query = searchParams.toString();
-    return this.request<AuthorPapersResponse>(`/graph/v1/author/${encodeURIComponent(authorId)}/papers${query ? '?' + query : ''}`);
+    return this.request<AuthorPapersResponse>(
+      this.withQuery(`/graph/v1/author/${encodeURIComponent(authorId)}/papers`, {
+        fields: params.fields,
+        limit: params.limit,
+        offset: params.offset,
+      })
+    );
   }
 
   // ========== 推荐 API ==========
@@ -182,13 +224,11 @@ export class SemanticScholarClient {
     fields?: string;
     limit?: number;
   }): Promise<RecommendationsResponse> {
-    const searchParams = new URLSearchParams();
-    if (params.fields) searchParams.set('fields', params.fields);
-    if (params.limit) searchParams.set('limit', String(params.limit));
-    const query = searchParams.toString();
-
     return this.request<RecommendationsResponse>(
-      `/recommendations/v1/papers${query ? '?' + query : ''}`,
+      this.withQuery('/recommendations/v1/papers', {
+        fields: params.fields,
+        limit: params.limit,
+      }),
       {
         method: 'POST',
         body: JSON.stringify({

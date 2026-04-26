@@ -4,7 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { client } from '../api/client.js';
 import { buildFieldsParam, DEFAULT_PAPER_FIELDS, DEFAULT_CITATION_FIELDS } from '../utils/fields.js';
-import { formatToolError } from '../utils/errors.js';
+import { formatPaperLine, textResponse, withErrorHandling } from './shared.js';
 
 export function registerPaperTools(server: McpServer) {
   // 搜索论文
@@ -23,8 +23,8 @@ export function registerPaperTools(server: McpServer) {
         offset: z.number().default(0).describe('分页偏移量'),
       },
     },
-    async ({ query, year, fieldsOfStudy, minCitationCount, openAccessPdf, limit, offset }) => {
-      try {
+    async ({ query, year, fieldsOfStudy, minCitationCount, openAccessPdf, limit, offset }) =>
+      withErrorHandling(async () => {
         const result = await client.searchPapers({
           query,
           fields: buildFieldsParam(DEFAULT_PAPER_FIELDS),
@@ -37,22 +37,10 @@ export function registerPaperTools(server: McpServer) {
         });
 
         const text = `找到 ${result.total} 篇论文，返回第 ${offset + 1}-${offset + result.data.length} 篇：\n\n` +
-          result.data.map((paper, i) => {
-            const authors = paper.authors?.map(a => a.name).join(', ') || '未知作者';
-            const pdf = paper.openAccessPdf?.url ? `\n   PDF: ${paper.openAccessPdf.url}` : '';
-            return `${offset + i + 1}. ${paper.title}\n   作者: ${authors}\n   年份: ${paper.year || '未知'} | 引用: ${paper.citationCount || 0}${pdf}\n   ID: ${paper.paperId}`;
-          }).join('\n\n');
+          result.data.map((paper, i) => formatPaperLine(paper, offset + i + 1, true)).join('\n\n');
 
-        return {
-          content: [{ type: 'text', text }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: formatToolError(error) }],
-          isError: true,
-        };
-      }
-    }
+        return textResponse(text);
+      })
   );
 
   // 获取论文详情
@@ -66,8 +54,8 @@ export function registerPaperTools(server: McpServer) {
         fields: z.array(z.string()).optional().describe('返回字段，如 ["title", "abstract", "authors", "year"]'),
       },
     },
-    async ({ paperId, fields }) => {
-      try {
+    async ({ paperId, fields }) =>
+      withErrorHandling(async () => {
         const paper = await client.getPaper(
           paperId,
           buildFieldsParam(fields || [...DEFAULT_PAPER_FIELDS, 'abstract', 'venue', 'referenceCount'])
@@ -89,16 +77,8 @@ export function registerPaperTools(server: McpServer) {
           paper.externalIds?.ArXiv ? `ArXiv: ${paper.externalIds.ArXiv}` : null,
         ].filter(Boolean).join('\n');
 
-        return {
-          content: [{ type: 'text', text }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: formatToolError(error) }],
-          isError: true,
-        };
-      }
-    }
+        return textResponse(text);
+      })
   );
 
   // 获取引用该论文的文献
@@ -113,8 +93,8 @@ export function registerPaperTools(server: McpServer) {
         offset: z.number().default(0).describe('分页偏移量'),
       },
     },
-    async ({ paperId, limit, offset }) => {
-      try {
+    async ({ paperId, limit, offset }) =>
+      withErrorHandling(async () => {
         const result = await client.getPaperCitations(paperId, {
           fields: `citingPaper.${DEFAULT_CITATION_FIELDS.join(',citingPaper.')}`,
           limit,
@@ -122,28 +102,14 @@ export function registerPaperTools(server: McpServer) {
         });
 
         if (result.data.length === 0) {
-          return {
-            content: [{ type: 'text', text: '该论文暂无引用记录' }],
-          };
+          return textResponse('该论文暂无引用记录');
         }
 
         const text = `引用该论文的文献（第 ${offset + 1}-${offset + result.data.length} 篇）：\n\n` +
-          result.data.map((citation, i) => {
-            const paper = citation.citingPaper;
-            const authors = paper.authors?.map(a => a.name).join(', ') || '未知作者';
-            return `${offset + i + 1}. ${paper.title}\n   作者: ${authors}\n   年份: ${paper.year || '未知'} | 引用: ${paper.citationCount || 0}\n   ID: ${paper.paperId}`;
-          }).join('\n\n');
+          result.data.map((citation, i) => formatPaperLine(citation.citingPaper, offset + i + 1)).join('\n\n');
 
-        return {
-          content: [{ type: 'text', text }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: formatToolError(error) }],
-          isError: true,
-        };
-      }
-    }
+        return textResponse(text);
+      })
   );
 
   // 获取论文参考文献
@@ -158,8 +124,8 @@ export function registerPaperTools(server: McpServer) {
         offset: z.number().default(0).describe('分页偏移量'),
       },
     },
-    async ({ paperId, limit, offset }) => {
-      try {
+    async ({ paperId, limit, offset }) =>
+      withErrorHandling(async () => {
         const result = await client.getPaperReferences(paperId, {
           fields: `citedPaper.${DEFAULT_CITATION_FIELDS.join(',citedPaper.')}`,
           limit,
@@ -167,28 +133,14 @@ export function registerPaperTools(server: McpServer) {
         });
 
         if (result.data.length === 0) {
-          return {
-            content: [{ type: 'text', text: '该论文暂无参考文献记录' }],
-          };
+          return textResponse('该论文暂无参考文献记录');
         }
 
         const text = `该论文的参考文献（第 ${offset + 1}-${offset + result.data.length} 篇）：\n\n` +
-          result.data.map((ref, i) => {
-            const paper = ref.citedPaper;
-            const authors = paper.authors?.map(a => a.name).join(', ') || '未知作者';
-            return `${offset + i + 1}. ${paper.title}\n   作者: ${authors}\n   年份: ${paper.year || '未知'} | 引用: ${paper.citationCount || 0}\n   ID: ${paper.paperId}`;
-          }).join('\n\n');
+          result.data.map((ref, i) => formatPaperLine(ref.citedPaper, offset + i + 1)).join('\n\n');
 
-        return {
-          content: [{ type: 'text', text }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: formatToolError(error) }],
-          isError: true,
-        };
-      }
-    }
+        return textResponse(text);
+      })
   );
 
   // 批量获取论文
@@ -202,8 +154,8 @@ export function registerPaperTools(server: McpServer) {
         fields: z.array(z.string()).optional().describe('返回字段'),
       },
     },
-    async ({ paperIds, fields }) => {
-      try {
+    async ({ paperIds, fields }) =>
+      withErrorHandling(async () => {
         const papers = await client.batchGetPapers(
           paperIds,
           buildFieldsParam(fields || DEFAULT_PAPER_FIELDS)
@@ -211,20 +163,9 @@ export function registerPaperTools(server: McpServer) {
 
         const validPapers = papers.filter((p): p is NonNullable<typeof p> => p !== null);
         const text = `成功获取 ${validPapers.length}/${paperIds.length} 篇论文：\n\n` +
-          validPapers.map((paper, i) => {
-            const authors = paper.authors?.map(a => a.name).join(', ') || '未知作者';
-            return `${i + 1}. ${paper.title}\n   作者: ${authors}\n   年份: ${paper.year || '未知'} | 引用: ${paper.citationCount || 0}\n   ID: ${paper.paperId}`;
-          }).join('\n\n');
+          validPapers.map((paper, i) => formatPaperLine(paper, i + 1)).join('\n\n');
 
-        return {
-          content: [{ type: 'text', text }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: formatToolError(error) }],
-          isError: true,
-        };
-      }
-    }
+        return textResponse(text);
+      })
   );
 }
