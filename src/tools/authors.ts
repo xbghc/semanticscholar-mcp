@@ -4,7 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { client } from '../api/client.js';
 import { buildFieldsParam, DEFAULT_AUTHOR_FIELDS, DEFAULT_PAPER_FIELDS } from '../utils/fields.js';
-import { formatToolError } from '../utils/errors.js';
+import { formatAuthorLine, formatPaperLine, textResponse, withErrorHandling } from './shared.js';
 
 export function registerAuthorTools(server: McpServer) {
   // 搜索作者
@@ -19,37 +19,24 @@ export function registerAuthorTools(server: McpServer) {
         offset: z.number().default(0).describe('分页偏移量'),
       },
     },
-    async ({ query, limit, offset }) => {
-      try {
+    async ({ query, limit, offset }) =>
+      withErrorHandling(async () => {
         const result = await client.searchAuthors({
           query,
-          fields: buildFieldsParam(DEFAULT_AUTHOR_FIELDS, DEFAULT_AUTHOR_FIELDS),
+          fields: buildFieldsParam(DEFAULT_AUTHOR_FIELDS),
           limit,
           offset,
         });
 
         if (result.data.length === 0) {
-          return {
-            content: [{ type: 'text', text: `未找到与 "${query}" 匹配的作者` }],
-          };
+          return textResponse(`未找到与 "${query}" 匹配的作者`);
         }
 
         const text = `找到 ${result.total} 位作者，返回第 ${offset + 1}-${offset + result.data.length} 位：\n\n` +
-          result.data.map((author, i) => {
-            const affiliations = author.affiliations?.join(', ') || '未知机构';
-            return `${offset + i + 1}. ${author.name}\n   机构: ${affiliations}\n   h-index: ${author.hIndex || 0} | 论文数: ${author.paperCount || 0} | 引用数: ${author.citationCount || 0}\n   ID: ${author.authorId}`;
-          }).join('\n\n');
+          result.data.map((author, i) => formatAuthorLine(author, offset + i + 1)).join('\n\n');
 
-        return {
-          content: [{ type: 'text', text }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: formatToolError(error) }],
-          isError: true,
-        };
-      }
-    }
+        return textResponse(text);
+      })
   );
 
   // 获取作者详情
@@ -63,8 +50,8 @@ export function registerAuthorTools(server: McpServer) {
         fields: z.array(z.string()).optional().describe('返回字段'),
       },
     },
-    async ({ authorId, fields }) => {
-      try {
+    async ({ authorId, fields }) =>
+      withErrorHandling(async () => {
         const author = await client.getAuthor(
           authorId,
           buildFieldsParam(fields || [...DEFAULT_AUTHOR_FIELDS, 'homepage', 'url'], DEFAULT_AUTHOR_FIELDS)
@@ -82,16 +69,8 @@ export function registerAuthorTools(server: McpServer) {
           `\n作者 ID: ${author.authorId}`,
         ].filter(Boolean).join('\n');
 
-        return {
-          content: [{ type: 'text', text }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: formatToolError(error) }],
-          isError: true,
-        };
-      }
-    }
+        return textResponse(text);
+      })
   );
 
   // 获取作者论文
@@ -106,8 +85,8 @@ export function registerAuthorTools(server: McpServer) {
         offset: z.number().default(0).describe('分页偏移量'),
       },
     },
-    async ({ authorId, limit, offset }) => {
-      try {
+    async ({ authorId, limit, offset }) =>
+      withErrorHandling(async () => {
         const result = await client.getAuthorPapers(authorId, {
           fields: buildFieldsParam(DEFAULT_PAPER_FIELDS),
           limit,
@@ -115,26 +94,13 @@ export function registerAuthorTools(server: McpServer) {
         });
 
         if (result.data.length === 0) {
-          return {
-            content: [{ type: 'text', text: '该作者暂无论文记录' }],
-          };
+          return textResponse('该作者暂无论文记录');
         }
 
         const text = `该作者的论文（第 ${offset + 1}-${offset + result.data.length} 篇）：\n\n` +
-          result.data.map((paper, i) => {
-            const authors = paper.authors?.map(a => a.name).join(', ') || '未知作者';
-            return `${offset + i + 1}. ${paper.title}\n   作者: ${authors}\n   年份: ${paper.year || '未知'} | 引用: ${paper.citationCount || 0}\n   ID: ${paper.paperId}`;
-          }).join('\n\n');
+          result.data.map((paper, i) => formatPaperLine(paper, offset + i + 1)).join('\n\n');
 
-        return {
-          content: [{ type: 'text', text }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: formatToolError(error) }],
-          isError: true,
-        };
-      }
-    }
+        return textResponse(text);
+      })
   );
 }
