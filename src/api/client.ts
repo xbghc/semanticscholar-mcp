@@ -18,15 +18,15 @@ export class SemanticScholarClient {
   private baseUrl = 'https://api.semanticscholar.org';
   private apiKey?: string;
   private rateLimiter: RateLimiter;
-  private backoff: BackoffStrategy;
 
   constructor() {
     this.apiKey = process.env.SEMANTIC_SCHOLAR_API_KEY;
     this.rateLimiter = new RateLimiter(this.apiKey ? 2000 : 5000);
-    this.backoff = new BackoffStrategy(this.rateLimiter);
   }
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+    const backoff = new BackoffStrategy(this.rateLimiter);
+
     const doRequest = async (): Promise<T> => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -42,7 +42,7 @@ export class SemanticScholarClient {
       });
 
       if (response.status === 429) {
-        const delay = this.backoff.onRateLimited();
+        const delay = backoff.onRateLimited();
         if (delay === -1) {
           throw new SemanticScholarError(429, 'Max retry attempts exceeded');
         }
@@ -57,7 +57,7 @@ export class SemanticScholarClient {
       }
 
       // 请求成功，重置退避计数
-      this.backoff.reset();
+      backoff.reset();
       return response.json() as Promise<T>;
     };
 
